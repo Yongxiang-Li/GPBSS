@@ -24,6 +24,8 @@ else
     theta = boxmin(@obj_func, theta0, lob, upb, data);
     AIC = [];
     indices = [];
+    tAIC_start = tic;
+
     for m = 1 : length(bs)
         for n = 1 : length(bs)
             bspline = bs([m,n]);
@@ -37,6 +39,8 @@ else
             AIC = [AIC; 2*prod([bspline(:).p])+obj];
             indices = [indices; m, n];
         end
+        tAIC_total = toc(tAIC_start);
+
     end
    [~, index] = min(AIC); 
    bspline = bs([indices(index, 1),indices(index, 2)]);
@@ -54,6 +58,7 @@ fit.theta = theta;
 fit.obj = obj;
 fit.bspline = bspline;
 fit.regr = regr;
+fit.tAIC_time_total = tAIC_total;   
 end
 
 function [obj, fit] = obj_func(para, data) % likelihood at interger

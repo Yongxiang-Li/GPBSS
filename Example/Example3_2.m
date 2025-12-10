@@ -1,15 +1,15 @@
 clear; clc; dbstop if error; rng('default');
 addpath('../routines/');  
 
-filename = 'WASS_2_theta=20.mat';
+filename = 'WASS_2_theta=5.mat';
 fields = {'WASS', 'RMSE', 'time'};
 models = {'GPBSS'};
 
-S = 30;  
-p = 2; N = 500; Nt = 2000;
-theta_true = 20*ones(p,1); 
+S = 10;  
+p = 2; N = 500; Nt = 1000;
+theta_true = 5*ones(p,1); 
 summary_table = table();  
-Nk_list = {[4,4],[8,8],[9,9],[10,10]};
+Nk_list = {[4,4],[5,5],[6,6],[7,7]};
 results_by_Nk = struct(); 
 for i = 1:length(Nk_list)
     Nk = Nk_list{i};  results_all = struct();
@@ -28,10 +28,10 @@ for i = 1:length(Nk_list)
         Sigma_t = Kxtxt - Kxxt * V; Sigma_t = (Sigma_t+Sigma_t')/2;
         S2_t = diag(Sigma_t);
         Yt =  mvnrnd(mu_t, Sigma_t)';
-        lob = [1; 1; 0.01]; upb = [100;100;1]; theta0 = (lob + upb)/2;
+        lob = [0.1; 0.1; 0]; upb = [10;10;0.001]; theta0 = (lob + upb)/3;
         result_s = struct();
         tic;
-        d = fit_GPBSS(X, Y, @regpoly1, @corr_gauss, init_Bspline(3,Nk), lob, upb, theta0);
+        d = fit_GPBSS(X, Y, @regpoly0, @corr_gauss, init_Bspline(2,Nk), lob, upb, theta0);
         [d.Yhat,d.sigma2] = predict_GPBSS(d, Xt);
         result_s.time = toc;
         result_s.RMSE = sqrt(mean((d.Yhat - Yt).^2));
@@ -41,9 +41,9 @@ for i = 1:length(Nk_list)
     for m = 1:length(models)
         model_name = models{m};
         R = results_all.(model_name);
-        WASS_mean    = mean([R(:).WASS], 'omitnan');
-        RMSE_mean  = mean([R(:).RMSE], 'omitnan');
-        Time_mean  = mean([R(:).time], 'omitnan');
+        WASS_mean    = mean([R(:).WASS]);
+        RMSE_mean  = mean([R(:).RMSE]);
+        Time_mean  = mean([R(:).time]);
         fprintf('%-10s | WASS=%.6f | RMSE=%.6f | Time=%.2fs\n', ...
             model_name, WASS_mean, RMSE_mean, Time_mean);
         summary_table = [summary_table; table(Nk, {model_name}, WASS_mean, RMSE_mean, Time_mean, ...
@@ -55,7 +55,7 @@ for i = 1:length(Nk_list)
 end
 save(filename, 'summary_table', 'results_by_Nk', '-v7.3');
 figure; hold on;
-Nk_list = [16,64,81,100];
+Nk_list = [16,25,36,49];
 model = 'GPBSS';  color = lines(1);  mu = nan(length(Nk_list),1);  sigma = nan(length(Nk_list),1);
 for i = 1:length(Nk_list)
     Nk = Nk_list(i);  key = ['Nk_', num2str(Nk)];
@@ -67,10 +67,32 @@ for i = 1:length(Nk_list)
         end
     end
 end
-x = Nk_list(:);  lower = mu - sigma;  upper = mu + sigma;
-fill([x; flipud(x)],[lower; flipud(upper)],color, 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility','off');
-plot(x, mu, '-o', 'LineWidth', 2,  'Color', color, 'DisplayName', model);
+Time_mu = Nk_list(:);  lower = mu - sigma;  upper = mu + sigma;
+fill([Time_mu; flipud(Time_mu)],[lower; flipud(upper)],color, 'FaceAlpha', 0.1, 'EdgeColor', 'none', 'HandleVisibility','off');
+plot(Time_mu, mu, '-o', 'LineWidth', 1,  'Color', color, 'DisplayName', model);
 xlabel('Number of inducing point','Interpreter','latex','FontSize',12);
 ylabel('Wasserstein Distance','Interpreter','latex','FontSize',12);
 legend('Location', 'best');  xticks(Nk_list);  grid on;
+
+colors = lines(length(models));
+figure; hold on;
+RMSE_mu = nan(length(Nk_list),1);   RMSE_std = nan(length(Nk_list),1);   Time_mu = nan(length(Nk_list),1);
+for i = 1:length(Nk_list)
+    Nk = Nk_list(i);
+    key = ['Nk_', num2str(Nk)];
+    if isfield(results_by_Nk, key)
+        result_struct = results_by_Nk.(key);
+        if isfield(result_struct, model)
+            res_array = result_struct.(model);   RMSE_vals = [res_array(:).RMSE];  Time_vals = [res_array(:).time];
+            RMSE_mu(i) = mean(RMSE_vals);    RMSE_std(i) = std(RMSE_vals);   Time_mu(i) = mean(Time_vals);
+        end
+    end
+end
+fill([Time_mu; flipud(Time_mu)], [RMSE_mu - RMSE_std; flipud(RMSE_mu + RMSE_std)],colors(m,:), 'FaceAlpha', 0.1, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+plot(Time_mu, RMSE_mu, '-o', 'LineWidth', 1, 'Color', colors(m,:), 'DisplayName', model);
+
+xlabel('Time (second)','Interpreter','latex','FontSize',12);
+ylabel('RMSE','Interpreter','latex','FontSize',12);
+legend('Location', 'best');
+grid on;
 

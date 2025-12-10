@@ -4,10 +4,10 @@ dbstop if error;
 addpath('../routines/');    
 data = readtable('output.csv');
 fields = {'RMSE', 'time'};
-n = 50000;
+n = 100000;
 test_size = 50000;
 rng('default');
-filename ='Forest_GPBSS_50000.mat';
+filename ='Forest_GPBSS_100000.mat';
 S = 10;
 if ~exist(filename, 'file')
     results_GPBSS = [];

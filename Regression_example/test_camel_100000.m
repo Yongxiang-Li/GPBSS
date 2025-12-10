@@ -2,8 +2,8 @@ clearvars -except methods
 dbstop if error;
 addpath('../routines/');
 fields = {'RMSE', 'time'};
-p = 2;  n = 50000;  m = 50000;
-filename ='Sixhump_GPBSS_50000.mat';
+p = 2;  n = 100000;  m = 50000;
+filename ='Sixhump_GPBSS_100000.mat';
 S = 10;
 if ~exist(filename, 'file')
     results_GPBSS = [];

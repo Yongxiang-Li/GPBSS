@@ -1,18 +1,18 @@
 clear; clc; dbstop if error; rng('default');
 addpath('../routines/');  
 
-filename = 'WASS_1_theta=20.mat';
+filename = 'WASS_1_theta=5.mat';
 fields = {'WASS', 'RMSE', 'time'};
 models = {'GPBSS'};
-S = 30;  
+S = 10;  
 p = 1; N = 200; Nt = 500;
-theta_true = 20*ones(p,1);  summary_table = table();  
-Nk_list = [25,50,75,100];  results_by_Nk = struct(); 
+theta_true = 5*ones(p,1);    summary_table = table();  
+Nk_list = [10,15,20,25]; results_by_Nk = struct(); 
 for Nk =Nk_list
     results_all = struct();
     for m = 1:length(models);  results_all.(models{m}) = []; end
     for s = 1:S
-        rng(s+30);
+        rng(2*s);
         X = sort(lhsdesign(N, 1));   Y = randGP(X, theta_true);
         Xt = sort(lhsdesign(Nt, 1));   
         Kxx  = corr_gauss0(theta_true, X ) + sqrt(eps)*eye(N);
@@ -25,10 +25,10 @@ for Nk =Nk_list
         Sigma_t = Kxtxt - Kxxt * V; Sigma_t = (Sigma_t+Sigma_t')/2;
         S2_t = diag(Sigma_t);
         Yt =  mvnrnd(mu_t, Sigma_t)';
-        lob = [1; 0.001]; upb = [50; 1]; theta0 = (lob + upb)/2;
+        lob = [0.001; 0]; upb = [20; 0.01]; theta0 = (lob + upb)/2;
         result_s = struct();
         tic;
-        d = fit_GPBSS(X, Y, @regpoly0, @corr_gauss, init_Bspline(3,Nk), lob, upb, theta0);
+        d = fit_GPBSS(X, Y, @regpoly0, @corr_gauss, init_Bspline(2,Nk), lob, upb, theta0);
         [d.Yhat,d.sigma2] = predict_GPBSS(d, Xt);
         result_s.time = toc;
         result_s.RMSE = sqrt(mean((d.Yhat - Yt).^2));
@@ -48,7 +48,7 @@ for Nk =Nk_list
     end
     results_by_Nk.(['Nk_', num2str(Nk)]) = results_all;
 end
-save(filename, 'summary_table', 'results_by_Nk', '-v7.3');
+save(filename, 'results_by_Nk', '-v7.3');
 figure; hold on;
 model = 'GPBSS';  color = lines(1);  mu = nan(length(Nk_list),1);  sigma = nan(length(Nk_list),1);
 for i = 1:length(Nk_list)
@@ -57,13 +57,35 @@ for i = 1:length(Nk_list)
         result_struct = results_by_Nk.(key);
         if isfield(result_struct, model)
             res_array = result_struct.(model);  wass_vals = [res_array(:).WASS];
-            mu(i) = mean(wass_vals, 'omitnan');  sigma(i) = std(wass_vals, 'omitnan');
+            mu(i) = mean(wass_vals);  sigma(i) = std(wass_vals);
         end
     end
 end
 x = Nk_list(:);  lower = mu - sigma;  upper = mu + sigma;
-fill([x; flipud(x)],[lower; flipud(upper)],color, 'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility','off');
-plot(x, mu, '-o', 'LineWidth', 2,  'Color', color, 'DisplayName', model);
+fill([x; flipud(x)],[lower; flipud(upper)],color, 'FaceAlpha', 0.1, 'EdgeColor', 'none', 'HandleVisibility','off');
+plot(x, mu, '-o', 'LineWidth', 1,  'Color', color, 'DisplayName', model);
 xlabel('Number of inducing point','Interpreter','latex','FontSize',12);
 ylabel('Wasserstein Distance','Interpreter','latex','FontSize',12);
 legend('Location', 'best');  xticks(Nk_list);  grid on;
+
+colors = lines(length(models));
+figure; hold on;
+RMSE_mu = nan(length(Nk_list),1);   RMSE_std = nan(length(Nk_list),1);   Time_mu = nan(length(Nk_list),1);
+for i = 1:length(Nk_list)
+    Nk = Nk_list(i);
+    key = ['Nk_', num2str(Nk)];
+    if isfield(results_by_Nk, key)
+        result_struct = results_by_Nk.(key);
+        if isfield(result_struct, model)
+            res_array = result_struct.(model);   RMSE_vals = [res_array(:).RMSE];  Time_vals = [res_array(:).time];
+            RMSE_mu(i) = mean(RMSE_vals);    RMSE_std(i) = std(RMSE_vals);   Time_mu(i) = mean(Time_vals);
+        end
+    end
+end
+fill([Time_mu; flipud(Time_mu)], [RMSE_mu - RMSE_std; flipud(RMSE_mu + RMSE_std)],colors(m,:), 'FaceAlpha', 0.1, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+plot(Time_mu, RMSE_mu, '-o', 'LineWidth', 1, 'Color', colors(m,:), 'DisplayName', model);
+
+xlabel('Time (second)','Interpreter','latex','FontSize',12);
+ylabel('RMSE','Interpreter','latex','FontSize',12);
+legend('Location', 'best');
+grid on;
